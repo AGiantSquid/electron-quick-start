@@ -2,18 +2,54 @@
 <html>
   <head>
     <meta charset="UTF-8">
-    <title>Hello World!</title>
+    <title>Bug with Web Audio</title>
   </head>
   <body>
-    <h1>Hello World!</h1>
-    <!-- All of the Node.js APIs are available in this renderer process. -->
-    We are using Node.js <script>document.write(process.versions.node)</script>,
-    Chromium <script>document.write(process.versions.chrome)</script>,
-    and Electron <script>document.write(process.versions.electron)</script>.
+    <!-- display the level of the audio input here -->
+    <div id="volume-level"></div>
+    <!-- this will play back the audio from the input device -->
+    <audio class="remote" autoplay></audio>
 
-    <script>
-      // You can also require other files to run in this process
-      require('./renderer.js')
+    <script type="text/javascript">
+      const audioContext = new AudioContext();
+      const analyser = audioContext.createAnalyser();
+      let amplitudes = new Uint8Array(analyser.frequencyBinCount);
+
+      const remoteAudioElement = document.querySelector('.remote');
+
+      navigator.getUserMedia(
+        { audio: true },
+        (stream) => {
+          const mediaStreamSourceNode = audioContext.createMediaStreamSource(stream);
+          const mediaStreamDestinationNode = audioContext.createMediaStreamDestination();
+
+          // send the audio from out input into the analyser and destination node
+          mediaStreamSourceNode.connect(analyser);
+          mediaStreamSourceNode.connect(mediaStreamDestinationNode);
+
+          remoteAudioElement.srcObject = mediaStreamDestinationNode.stream;
+
+          // write out the volume level of the mic on the page
+          function renderFrame () {
+            requestAnimationFrame(renderFrame);
+            analyser.getByteFrequencyData(amplitudes);
+            const volume = getVolumeLevel(amplitudes);
+            document.getElementById('volume-level').innerHTML = volume;
+          };
+
+          renderFrame();
+        },
+        err => console.log(err),
+      );
+
+      function getVolumeLevel(amplitudes) {
+        const length = amplitudes.length;
+        const total = amplitudes.reduce((accum, i) => accum + i, 0);
+        const average = total / length;
+        return Math.round(average);
+      }
+
     </script>
+
   </body>
 </html>
